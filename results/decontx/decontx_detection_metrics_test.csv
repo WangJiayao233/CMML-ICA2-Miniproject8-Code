@@ -1,0 +1,2 @@
+"scenario","true_mean_fraction","decontx_mean_estimate","spearman_true_vs_decontx","pearson_true_vs_decontx","contamination_rmse"
+"sourceCluster0_genes100_frac0p10",0.100605101827822,0.122422341687027,0.226016801827802,0.152211092760651,0.102671183201705

@@ -1,0 +1,4 @@
+"method","category","run_status","quantitative_benchmark","input_used","evaluation","main_limitation_observed"
+"DecontX","Probabilistic modeling","Completed","Yes","Simulated contaminated filtered PBMC count matrices with cluster labels","Ground-truth contamination correlation, RMSE, marker leakage, ARI","Weak per-cell contamination recovery, especially for single-gene contamination"
+"SoupX","Profile subtraction","Completed","Yes","Simulated contaminated PBMC matrices with pseudo raw droplets and manual rho","RMSE, marker leakage, ARI","Manual contamination fraction used; not evaluated for per-cell contamination detection"
+"CellBender","Deep generative raw-droplet model","Attempted; H5 output not generated","No","PBMC4K raw droplet H5 matrix","Workflow and limitation discussion only","Checkpoint serialization failed repeatedly, preventing posterior H5 output generation"

@@ -1,0 +1,294 @@
+cellbender:remove-background: Command:
+cellbender remove-background --input data/PBMC4K_raw/pbmc4k_raw_gene_bc_matrices_h5.h5 --output results/cellbender/pbmc4k_cellbender.h5 --expected-cells 5000 --total-droplets-included 15000 --fpr 0.01
+cellbender:remove-background: CellBender 0.3.2
+cellbender:remove-background: (Workflow hash 701f3cbc16)
+cellbender:remove-background: 2026-05-22 02:32:49
+cellbender:remove-background: Running remove-background
+cellbender:remove-background: Loading data from data/PBMC4K_raw/pbmc4k_raw_gene_bc_matrices_h5.h5
+cellbender:remove-background: CellRanger v2 format
+cellbender:remove-background: Features in dataset: 33694 NA
+cellbender:remove-background: Trimming features for inference.
+cellbender:remove-background: 20112 features have nonzero counts.
+cellbender:remove-background: Prior on counts for cells is 3005
+cellbender:remove-background: Prior on counts for empty droplets is 40
+cellbender:remove-background: Excluding 6907 features that are estimated to have <= 0.1 background counts in cells.
+cellbender:remove-background: Including 13205 features in the analysis.
+cellbender:remove-background: Trimming barcodes for inference.
+cellbender:remove-background: Excluding barcodes with counts below 20
+cellbender:remove-background: Using 5000 probable cell barcodes, plus an additional 10000 barcodes, and 50410 empty droplets.
+cellbender:remove-background: Largest surely-empty droplet has 40 UMI counts.
+cellbender:remove-background: Attempting to unpack tarball "ckpt.tar.gz" to /var/folders/01/w87tcvcd421c_z7f29crbrrc0000gn/T/tmp7gn7xpos
+cellbender:remove-background: No saved checkpoint.
+cellbender:remove-background: No checkpoint loaded.
+cellbender:remove-background: Running inference...
+cellbender:remove-background: [epoch 001]  average training loss: 3623.8798
+cellbender:remove-background: [epoch 002]  average training loss: 3032.1530  (22.7 seconds per epoch)
+cellbender:remove-background: Will checkpoint every 19 epochs
+cellbender:remove-background: [epoch 003]  average training loss: 2482.9526
+cellbender:remove-background: [epoch 004]  average training loss: 2039.7490
+cellbender:remove-background: [epoch 005]  average training loss: 1716.8483
+cellbender:remove-background: [epoch 005] average test loss: 1645.6486
+cellbender:remove-background: [epoch 006]  average training loss: 1509.7084
+cellbender:remove-background: [epoch 007]  average training loss: 1385.2218
+cellbender:remove-background: [epoch 008]  average training loss: 1338.3403
+cellbender:remove-background: [epoch 009]  average training loss: 1340.4604
+cellbender:remove-background: [epoch 010]  average training loss: 1344.2817
+cellbender:remove-background: [epoch 010] average test loss: 1275.7675
+cellbender:remove-background: [epoch 011]  average training loss: 1332.5240
+cellbender:remove-background: [epoch 012]  average training loss: 1335.0344
+cellbender:remove-background: [epoch 013]  average training loss: 1330.3547
+cellbender:remove-background: [epoch 014]  average training loss: 1326.5992
+cellbender:remove-background: [epoch 015]  average training loss: 1327.9035
+cellbender:remove-background: [epoch 015] average test loss: 1268.5158
+cellbender:remove-background: [epoch 016]  average training loss: 1328.7087
+cellbender:remove-background: [epoch 017]  average training loss: 1328.1936
+cellbender:remove-background: [epoch 018]  average training loss: 1322.7679
+cellbender:remove-background: [epoch 019]  average training loss: 1322.5685
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 020]  average training loss: 1306.7317
+cellbender:remove-background: [epoch 020] average test loss: 1286.2260
+cellbender:remove-background: [epoch 021]  average training loss: 1287.4332
+cellbender:remove-background: [epoch 022]  average training loss: 1282.6330
+cellbender:remove-background: [epoch 023]  average training loss: 1279.5756
+cellbender:remove-background: [epoch 024]  average training loss: 1277.4077
+cellbender:remove-background: [epoch 025]  average training loss: 1276.2240
+cellbender:remove-background: [epoch 025] average test loss: 1225.1584
+cellbender:remove-background: [epoch 026]  average training loss: 1275.2649
+cellbender:remove-background: [epoch 027]  average training loss: 1273.6529
+cellbender:remove-background: [epoch 028]  average training loss: 1272.1109
+cellbender:remove-background: [epoch 029]  average training loss: 1271.0416
+cellbender:remove-background: [epoch 030]  average training loss: 1271.0131
+cellbender:remove-background: [epoch 030] average test loss: 1225.2420
+cellbender:remove-background: [epoch 031]  average training loss: 1270.2092
+cellbender:remove-background: [epoch 032]  average training loss: 1267.4875
+cellbender:remove-background: [epoch 033]  average training loss: 1267.5595
+cellbender:remove-background: [epoch 034]  average training loss: 1268.6415
+cellbender:remove-background: [epoch 035]  average training loss: 1266.9716
+cellbender:remove-background: [epoch 035] average test loss: 1217.0097
+cellbender:remove-background: [epoch 036]  average training loss: 1269.7521
+cellbender:remove-background: [epoch 037]  average training loss: 1266.9084
+cellbender:remove-background: [epoch 038]  average training loss: 1263.0430
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 039]  average training loss: 1259.0543
+cellbender:remove-background: [epoch 040]  average training loss: 1255.0915
+cellbender:remove-background: [epoch 040] average test loss: 1212.2658
+cellbender:remove-background: [epoch 041]  average training loss: 1256.3321
+cellbender:remove-background: [epoch 042]  average training loss: 1258.3764
+cellbender:remove-background: [epoch 043]  average training loss: 1269.3767
+cellbender:remove-background: [epoch 044]  average training loss: 1279.3451
+cellbender:remove-background: [epoch 045]  average training loss: 1295.5496
+cellbender:remove-background: [epoch 045] average test loss: 1212.3073
+cellbender:remove-background: [epoch 046]  average training loss: 1269.8537
+cellbender:remove-background: [epoch 047]  average training loss: 1251.0477
+cellbender:remove-background: [epoch 048]  average training loss: 1256.7962
+cellbender:remove-background: [epoch 049]  average training loss: 1254.8395
+cellbender:remove-background: [epoch 050]  average training loss: 1273.3367
+cellbender:remove-background: [epoch 050] average test loss: 1217.3340
+cellbender:remove-background: [epoch 051]  average training loss: 1248.0022
+cellbender:remove-background: [epoch 052]  average training loss: 1251.1053
+cellbender:remove-background: [epoch 053]  average training loss: 1259.9362
+cellbender:remove-background: [epoch 054]  average training loss: 1254.7208
+cellbender:remove-background: [epoch 055]  average training loss: 1252.4086
+cellbender:remove-background: [epoch 055] average test loss: 1201.6780
+cellbender:remove-background: [epoch 056]  average training loss: 1245.4045
+cellbender:remove-background: [epoch 057]  average training loss: 1251.9543
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 058]  average training loss: 1251.2637
+cellbender:remove-background: [epoch 059]  average training loss: 1248.3580
+cellbender:remove-background: [epoch 060]  average training loss: 1263.7387
+cellbender:remove-background: [epoch 060] average test loss: 1197.5393
+cellbender:remove-background: [epoch 061]  average training loss: 1256.3671
+cellbender:remove-background: [epoch 062]  average training loss: 1261.8226
+cellbender:remove-background: [epoch 063]  average training loss: 1239.1384
+cellbender:remove-background: [epoch 064]  average training loss: 1257.2709
+cellbender:remove-background: [epoch 065]  average training loss: 1253.9239
+cellbender:remove-background: [epoch 065] average test loss: 1209.1140
+cellbender:remove-background: [epoch 066]  average training loss: 1253.7428
+cellbender:remove-background: [epoch 067]  average training loss: 1258.8501
+cellbender:remove-background: [epoch 068]  average training loss: 1267.7442
+cellbender:remove-background: [epoch 069]  average training loss: 1268.2277
+cellbender:remove-background: [epoch 070]  average training loss: 1266.5444
+cellbender:remove-background: [epoch 070] average test loss: 1240.2547
+cellbender:remove-background: [epoch 071]  average training loss: 1259.6725
+cellbender:remove-background: [epoch 072]  average training loss: 1261.8863
+cellbender:remove-background: [epoch 073]  average training loss: 1271.1746
+cellbender:remove-background: [epoch 074]  average training loss: 1240.2489
+cellbender:remove-background: [epoch 075]  average training loss: 1266.7496
+cellbender:remove-background: [epoch 075] average test loss: 1208.2675
+cellbender:remove-background: [epoch 076]  average training loss: 1258.1540
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 077]  average training loss: 1268.4091
+cellbender:remove-background: [epoch 078]  average training loss: 1269.8176
+cellbender:remove-background: [epoch 079]  average training loss: 1256.0542
+cellbender:remove-background: [epoch 080]  average training loss: 1254.4489
+cellbender:remove-background: [epoch 080] average test loss: 1200.3202
+cellbender:remove-background: [epoch 081]  average training loss: 1237.9429
+cellbender:remove-background: [epoch 082]  average training loss: 1259.1622
+cellbender:remove-background: [epoch 083]  average training loss: 1239.3104
+cellbender:remove-background: [epoch 084]  average training loss: 1244.1854
+cellbender:remove-background: [epoch 085]  average training loss: 1250.2191
+cellbender:remove-background: [epoch 085] average test loss: 1196.7048
+cellbender:remove-background: [epoch 086]  average training loss: 1252.9448
+cellbender:remove-background: [epoch 087]  average training loss: 1242.1400
+cellbender:remove-background: [epoch 088]  average training loss: 1268.3070
+cellbender:remove-background: [epoch 089]  average training loss: 1281.4758
+cellbender:remove-background: [epoch 090]  average training loss: 1245.5016
+cellbender:remove-background: [epoch 090] average test loss: 1236.6266
+cellbender:remove-background: [epoch 091]  average training loss: 1261.9977
+cellbender:remove-background: [epoch 092]  average training loss: 1257.8554
+cellbender:remove-background: [epoch 093]  average training loss: 1245.3340
+cellbender:remove-background: [epoch 094]  average training loss: 1238.6282
+cellbender:remove-background: [epoch 095]  average training loss: 1242.3783
+cellbender:remove-background: [epoch 095] average test loss: 1230.9931
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 096]  average training loss: 1280.8922
+cellbender:remove-background: [epoch 097]  average training loss: 1247.3812
+cellbender:remove-background: [epoch 098]  average training loss: 1245.7657
+cellbender:remove-background: [epoch 099]  average training loss: 1235.1829
+cellbender:remove-background: [epoch 100]  average training loss: 1256.6598
+cellbender:remove-background: [epoch 100] average test loss: 1204.8626
+cellbender:remove-background: [epoch 101]  average training loss: 1244.5103
+cellbender:remove-background: [epoch 102]  average training loss: 1242.3422
+cellbender:remove-background: [epoch 103]  average training loss: 1240.6760
+cellbender:remove-background: [epoch 104]  average training loss: 1254.4120
+cellbender:remove-background: [epoch 105]  average training loss: 1243.1362
+cellbender:remove-background: [epoch 105] average test loss: 1199.8109
+cellbender:remove-background: [epoch 106]  average training loss: 1245.7431
+cellbender:remove-background: [epoch 107]  average training loss: 1242.4035
+cellbender:remove-background: [epoch 108]  average training loss: 1249.6888
+cellbender:remove-background: [epoch 109]  average training loss: 1241.5602
+cellbender:remove-background: [epoch 110]  average training loss: 1262.9530
+cellbender:remove-background: [epoch 110] average test loss: 1200.8799
+cellbender:remove-background: [epoch 111]  average training loss: 1233.8323
+cellbender:remove-background: [epoch 112]  average training loss: 1243.9547
+cellbender:remove-background: [epoch 113]  average training loss: 1243.3236
+cellbender:remove-background: [epoch 114]  average training loss: 1234.8869
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 115]  average training loss: 1245.8765
+cellbender:remove-background: [epoch 115] average test loss: 1192.8074
+cellbender:remove-background: [epoch 116]  average training loss: 1232.2458
+cellbender:remove-background: [epoch 117]  average training loss: 1259.2063
+cellbender:remove-background: [epoch 118]  average training loss: 1236.6523
+cellbender:remove-background: [epoch 119]  average training loss: 1241.0839
+cellbender:remove-background: [epoch 120]  average training loss: 1227.9727
+cellbender:remove-background: [epoch 120] average test loss: 1202.2539
+cellbender:remove-background: [epoch 121]  average training loss: 1240.6135
+cellbender:remove-background: [epoch 122]  average training loss: 1244.6263
+cellbender:remove-background: [epoch 123]  average training loss: 1241.1223
+cellbender:remove-background: [epoch 124]  average training loss: 1247.3410
+cellbender:remove-background: [epoch 125]  average training loss: 1236.4613
+cellbender:remove-background: [epoch 125] average test loss: 1205.6789
+cellbender:remove-background: [epoch 126]  average training loss: 1240.0905
+cellbender:remove-background: [epoch 127]  average training loss: 1254.7134
+cellbender:remove-background: [epoch 128]  average training loss: 1235.9305
+cellbender:remove-background: [epoch 129]  average training loss: 1246.2799
+cellbender:remove-background: [epoch 130]  average training loss: 1233.0508
+cellbender:remove-background: [epoch 130] average test loss: 1216.9794
+cellbender:remove-background: [epoch 131]  average training loss: 1238.6762
+cellbender:remove-background: [epoch 132]  average training loss: 1255.9696
+cellbender:remove-background: [epoch 133]  average training loss: 1237.9034
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: [epoch 134]  average training loss: 1237.8411
+cellbender:remove-background: [epoch 135]  average training loss: 1236.5267
+cellbender:remove-background: [epoch 135] average test loss: 1202.4206
+cellbender:remove-background: [epoch 136]  average training loss: 1236.5255
+cellbender:remove-background: [epoch 137]  average training loss: 1228.5151
+cellbender:remove-background: [epoch 138]  average training loss: 1241.0657
+cellbender:remove-background: [epoch 139]  average training loss: 1234.7608
+cellbender:remove-background: [epoch 140]  average training loss: 1233.6237
+cellbender:remove-background: [epoch 140] average test loss: 1198.6590
+cellbender:remove-background: [epoch 141]  average training loss: 1239.9220
+cellbender:remove-background: [epoch 142]  average training loss: 1234.4879
+cellbender:remove-background: [epoch 143]  average training loss: 1238.5076
+cellbender:remove-background: [epoch 144]  average training loss: 1240.2440
+cellbender:remove-background: [epoch 145]  average training loss: 1242.9140
+cellbender:remove-background: [epoch 145] average test loss: 1194.9966
+cellbender:remove-background: [epoch 146]  average training loss: 1233.7778
+cellbender:remove-background: [epoch 147]  average training loss: 1260.6770
+cellbender:remove-background: [epoch 148]  average training loss: 1246.6507
+cellbender:remove-background: [epoch 149]  average training loss: 1240.4692
+cellbender:remove-background: [epoch 150]  average training loss: 1239.9097
+cellbender:remove-background: [epoch 150] average test loss: 1198.1203
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.12/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1004, in save
+    _save(
+  File "/opt/miniconda3/lib/python3.12/site-packages/torch/serialization.py", line 1254, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: 2026-05-22 03:30:39
+cellbender:remove-background: Inference procedure complete.

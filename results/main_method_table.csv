@@ -1,0 +1,4 @@
+"Method","Strategy","Input","Project_evaluation","Main_limitation"
+"DecontX","Probabilistic contamination model","Filtered count matrix + clusters","Ground-truth detection and correction benchmark","Weak per-cell recovery in this simulation"
+"SoupX","Profile subtraction","Pseudo raw droplets + contaminated cells","Manual-rho correction benchmark","Target contamination fraction was supplied"
+"CellBender","Deep generative raw-droplet model","Raw droplet H5 matrix","Attempted workflow; no H5 output","Checkpoint serialization failed locally"

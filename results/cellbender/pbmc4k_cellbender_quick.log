@@ -1,0 +1,61 @@
+cellbender:remove-background: Command:
+cellbender remove-background --input data/PBMC4K_raw/pbmc4k_raw_gene_bc_matrices_h5.h5 --output results/cellbender/pbmc4k_cellbender_quick.h5 --expected-cells 5000 --total-droplets-included 8000 --epochs 20 --fpr 0.01 --cpu-threads 4
+cellbender:remove-background: CellBender 0.3.2
+cellbender:remove-background: (Workflow hash 1e311f7f2e)
+cellbender:remove-background: 2026-05-22 04:41:01
+cellbender:remove-background: Running remove-background
+cellbender:remove-background: Loading data from data/PBMC4K_raw/pbmc4k_raw_gene_bc_matrices_h5.h5
+cellbender:remove-background: CellRanger v2 format
+cellbender:remove-background: Features in dataset: 33694 NA
+cellbender:remove-background: Trimming features for inference.
+cellbender:remove-background: 20112 features have nonzero counts.
+cellbender:remove-background: Prior on counts for cells is 3005
+cellbender:remove-background: Prior on counts for empty droplets is 58
+cellbender:remove-background: Excluding 6808 features that are estimated to have <= 0.1 background counts in cells.
+cellbender:remove-background: Including 13304 features in the analysis.
+cellbender:remove-background: Trimming barcodes for inference.
+cellbender:remove-background: Excluding barcodes with counts below 29
+cellbender:remove-background: Using 5000 probable cell barcodes, plus an additional 3000 barcodes, and 27808 empty droplets.
+cellbender:remove-background: Largest surely-empty droplet has 56 UMI counts.
+cellbender:remove-background: Attempting to unpack tarball "ckpt.tar.gz" to /var/folders/01/w87tcvcd421c_z7f29crbrrc0000gn/T/tmp_qzk0g7y
+cellbender:remove-background: No saved checkpoint.
+cellbender:remove-background: No checkpoint loaded.
+cellbender:remove-background: Running inference...
+cellbender:remove-background: [epoch 001]  average training loss: 5275.0774
+cellbender:remove-background: [epoch 002]  average training loss: 4143.0960  (14.5 seconds per epoch)
+cellbender:remove-background: Will not checkpoint due to projected run completion in under 7.0 min
+cellbender:remove-background: [epoch 003]  average training loss: 2574.5645
+cellbender:remove-background: [epoch 004]  average training loss: 2261.4342
+cellbender:remove-background: [epoch 005]  average training loss: 2249.6630
+cellbender:remove-background: [epoch 005] average test loss: 2242.8233
+cellbender:remove-background: [epoch 006]  average training loss: 2234.5361
+cellbender:remove-background: [epoch 007]  average training loss: 2241.4266
+cellbender:remove-background: [epoch 008]  average training loss: 2229.6359
+cellbender:remove-background: [epoch 009]  average training loss: 2230.0361
+cellbender:remove-background: [epoch 010]  average training loss: 2208.4289
+cellbender:remove-background: [epoch 010] average test loss: 2210.7916
+cellbender:remove-background: [epoch 011]  average training loss: 2163.0599
+cellbender:remove-background: [epoch 012]  average training loss: 2141.4439
+cellbender:remove-background: [epoch 013]  average training loss: 2135.2957
+cellbender:remove-background: [epoch 014]  average training loss: 2129.7044
+cellbender:remove-background: [epoch 015]  average training loss: 2120.7069
+cellbender:remove-background: [epoch 015] average test loss: 2103.0540
+cellbender:remove-background: [epoch 016]  average training loss: 2117.9599
+cellbender:remove-background: [epoch 017]  average training loss: 2114.4001
+cellbender:remove-background: [epoch 018]  average training loss: 2113.4826
+cellbender:remove-background: [epoch 019]  average training loss: 2113.9045
+cellbender:remove-background: [epoch 020]  average training loss: 2112.8956
+cellbender:remove-background: [epoch 020] average test loss: 2091.2204
+cellbender:remove-background: Saving a checkpoint...
+cellbender:remove-background: Could not save checkpoint
+cellbender:remove-background: Traceback (most recent call last):
+  File "/Users/wangjiayao/.conda/envs/cellbender310/lib/python3.10/site-packages/cellbender/remove_background/checkpoint.py", line 115, in save_checkpoint
+    torch.save(model_obj, filebase + '_model.torch')
+  File "/Users/wangjiayao/.conda/envs/cellbender310/lib/python3.10/site-packages/torch/serialization.py", line 619, in save
+    _save(obj, opened_zipfile, pickle_module, pickle_protocol, _disable_byteorder_record)
+  File "/Users/wangjiayao/.conda/envs/cellbender310/lib/python3.10/site-packages/torch/serialization.py", line 831, in _save
+    pickler.dump(obj)
+TypeError: cannot pickle 'weakref.ReferenceType' object
+
+cellbender:remove-background: 2026-05-22 04:45:57
+cellbender:remove-background: Inference procedure complete.
