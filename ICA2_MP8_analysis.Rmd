@@ -1,0 +1,2543 @@
+---
+title: "ICA2_MP8_analysis"
+author: "Jiayao"
+date: "2026-05-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Preparation
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(celda)
+library(SoupX)
+library(mclust)
+library(aricode)
+
+set.seed(12345)
+
+dir.create("figures", showWarnings = FALSE)
+dir.create("results/qc", recursive = TRUE, showWarnings = FALSE)
+
+data_dir <- "data/PBMC4K_filtered"
+
+list.files(data_dir)
+
+counts <- Read10X(data.dir = data_dir)
+
+dim(counts)
+head(rownames(counts))
+head(colnames(counts))
+```
+
+The files are okay.
+
+### QC and UMAP
+
+```{r}
+pbmc <- CreateSeuratObject(
+  counts = counts,
+  project = "PBMC4K",
+  min.cells = 3,
+  min.features = 200
+)
+
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+
+qc_summary_before <- data.frame(
+  n_cells = ncol(pbmc),
+  median_nFeature_RNA = median(pbmc$nFeature_RNA),
+  median_nCount_RNA = median(pbmc$nCount_RNA),
+  median_percent_mt = median(pbmc$percent.mt)
+)
+
+qc_summary_before
+
+p_qc <- VlnPlot(
+  pbmc,
+  features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
+  ncol = 3
+)
+
+ggsave(
+  "figures/FigS1_QC_before_filtering.png",
+  p_qc,
+  width = 10,
+  height = 4,
+  dpi = 300
+)
+
+pbmc <- subset(
+  pbmc,
+  subset = nFeature_RNA >= 200 &
+           nFeature_RNA <= 3000 &
+           nCount_RNA <= 20000 &
+           percent.mt <= 10
+)
+
+qc_summary_after <- data.frame(
+  n_cells = ncol(pbmc),
+  median_nFeature_RNA = median(pbmc$nFeature_RNA),
+  median_nCount_RNA = median(pbmc$nCount_RNA),
+  median_percent_mt = median(pbmc$percent.mt)
+)
+
+qc_summary_after
+
+pbmc <- NormalizeData(
+  pbmc,
+  normalization.method = "LogNormalize",
+  scale.factor = 10000
+)
+
+pbmc <- FindVariableFeatures(
+  pbmc,
+  selection.method = "vst",
+  nfeatures = 2000
+)
+
+pbmc <- ScaleData(pbmc, features = rownames(pbmc))
+
+pbmc <- RunPCA(
+  pbmc,
+  features = VariableFeatures(pbmc)
+)
+
+theme_white <- theme_classic(base_size = 14) +
+  theme(
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.background = element_rect(fill = "white", colour = NA),
+    legend.background = element_rect(fill = "white", colour = NA),
+    legend.key = element_rect(fill = "white", colour = NA)
+  )
+
+p_elbow <- ElbowPlot(pbmc, ndims = 30) +
+  theme_white +
+  ggtitle("Elbow plot for clean PBMC baseline")
+
+ggsave(
+  "figures/FigS2_ElbowPlot.png",
+  p_elbow,
+  width = 5,
+  height = 4,
+  dpi = 300,
+  bg = "white"
+)
+
+pbmc <- FindNeighbors(pbmc, dims = 1:15)
+pbmc <- FindClusters(pbmc, resolution = 0.7)
+pbmc <- RunUMAP(pbmc, dims = 1:15)
+
+p_umap_clean <- DimPlot(
+  pbmc,
+  reduction = "umap",
+  label = TRUE
+) + ggtitle("Clean PBMC baseline clusters")
+
+ggsave(
+  "figures/FigS3_Clean_PBMC_UMAP.png",
+  p_umap_clean,
+  width = 6,
+  height = 5,
+  dpi = 300
+)
+
+saveRDS(pbmc, "results/qc/pbmc_clean_seurat.rds")
+```
+
+### Marker sanity check
+
+```{r}
+# Prepare working space
+dir.create("results/qc", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+theme_white <- theme_classic(base_size = 14) +
+  theme(
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.background = element_rect(fill = "white", colour = NA),
+    legend.background = element_rect(fill = "white", colour = NA),
+    legend.key = element_rect(fill = "white", colour = NA)
+  )
+# Marker sanity check
+marker_genes_all <- c(
+  # T cells
+  "CD3D", "CD3E", "TRAC", "IL7R", "CCR7", "LTB",
+  
+  # B cells
+  "MS4A1", "CD79A", "CD79B", "CD74",
+  
+  # NK cells
+  "NKG7", "GNLY", "KLRD1", "GZMB",
+  
+  # Monocytes
+  "LYZ", "S100A8", "S100A9", "FCGR3A", "MS4A7", "CST3",
+  
+  # Dendritic cells
+  "FCER1A", "CLEC10A",
+  
+  # Platelet / megakaryocyte-like signal
+  "PPBP", "PF4"
+)
+
+marker_genes <- intersect(marker_genes_all, rownames(pbmc))
+missing_markers <- setdiff(marker_genes_all, rownames(pbmc))
+
+marker_genes
+missing_markers
+
+p_marker_dot <- DotPlot(
+  pbmc,
+  features = marker_genes
+) +
+  RotatedAxis() +
+  theme_white +
+  ggtitle("Canonical PBMC marker expression across clean clusters")
+
+ggsave(
+  "figures/FigS4_Clean_marker_dotplot.png",
+  p_marker_dot,
+  width = 12,
+  height = 5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_marker_dot
+
+all_markers <- FindAllMarkers(
+  pbmc,
+  only.pos = TRUE,
+  min.pct = 0.25,
+  logfc.threshold = 0.25
+)
+
+write.csv(
+  all_markers,
+  "results/qc/clean_cluster_all_markers.csv",
+  row.names = FALSE
+)
+
+fc_col <- intersect(c("avg_log2FC", "avg_logFC"), colnames(all_markers))[1]
+
+top10_markers <- all_markers %>%
+  group_by(cluster) %>%
+  slice_max(order_by = .data[[fc_col]], n = 10) %>%
+  ungroup()
+
+write.csv(
+  top10_markers,
+  "results/qc/clean_cluster_top10_markers.csv",
+  row.names = FALSE
+)
+
+head(top10_markers, 20)
+
+
+```
+
+### Controlled ambient RNA simulation
+
+```{r}
+# Prepare clean counts and cluster labels
+dir.create("results/simulated", recursive = TRUE, showWarnings = FALSE)
+dir.create("results/metrics", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+get_assay_data <- function(obj, layer_name = "counts") {
+  tryCatch(
+    GetAssayData(obj, assay = "RNA", layer = layer_name),
+    error = function(e) GetAssayData(obj, assay = "RNA", slot = layer_name)
+  )
+}
+
+clean_counts <- get_assay_data(pbmc, "counts")
+clean_norm <- get_assay_data(pbmc, "data")
+
+clean_clusters <- as.character(Idents(pbmc))
+names(clean_clusters) <- colnames(pbmc)
+
+dim(clean_counts)
+table(clean_clusters)
+
+# Automatically search for monocyte-like source clusters
+monocyte_markers <- intersect(
+  c("LYZ", "S100A8", "S100A9", "FCGR3A", "MS4A7", "CST3"),
+  rownames(pbmc)
+)
+
+monocyte_markers
+
+if (length(monocyte_markers) < 3) {
+  stop("Too few monocyte marker genes found in the dataset.")
+}
+
+cluster_ids <- levels(Idents(pbmc))
+
+monocyte_source_scores <- do.call(
+  rbind,
+  lapply(cluster_ids, function(cl) {
+    cells <- names(clean_clusters)[clean_clusters == cl]
+    
+    marker_mat <- clean_norm[monocyte_markers, cells, drop = FALSE]
+    
+    data.frame(
+      cluster = cl,
+      n_cells = length(cells),
+      monocyte_marker_score = mean(Matrix::rowMeans(marker_mat))
+    )
+  })
+)
+
+monocyte_source_scores <- monocyte_source_scores %>%
+  arrange(desc(monocyte_marker_score))
+
+write.csv(
+  monocyte_source_scores,
+  "results/simulated/monocyte_source_cluster_scores.csv",
+  row.names = FALSE
+)
+
+monocyte_source_scores
+
+source_cluster <- monocyte_source_scores$cluster[1]
+source_cells <- names(clean_clusters)[clean_clusters == source_cluster]
+
+source_cluster
+length(source_cells)
+
+# Check out the top soup genes of this source cluster
+source_gene_sums <- Matrix::rowSums(clean_counts[, source_cells, drop = FALSE])
+
+source_profile_df <- data.frame(
+  gene = names(source_gene_sums),
+  source_counts = as.numeric(source_gene_sums)
+) %>%
+  filter(source_counts > 0) %>%
+  arrange(desc(source_counts))
+
+source_profile_df$rank <- seq_len(nrow(source_profile_df))
+
+write.csv(
+  head(source_profile_df, 200),
+  "results/simulated/source_cluster_top200_soup_genes.csv",
+  row.names = FALSE
+)
+
+head(source_profile_df, 30)
+
+# Define ambient RNA simulation function
+simulate_ambient_from_source <- function(
+    counts,
+    source_cells,
+    source_cluster,
+    soup_gene_n = 100,
+    mean_frac = 0.05,
+    seed = 1,
+    concentration = 80
+) {
+  set.seed(seed)
+  
+  counts <- as(counts, "dgCMatrix")
+  source_cells <- intersect(source_cells, colnames(counts))
+  
+  if (length(source_cells) == 0) {
+    stop("No source cells found in the count matrix.")
+  }
+  
+  source_profile <- Matrix::rowSums(counts[, source_cells, drop = FALSE])
+  candidate_genes <- names(source_profile)[source_profile > 0]
+  
+  soup_genes <- names(sort(source_profile[candidate_genes], decreasing = TRUE))[
+    seq_len(min(soup_gene_n, length(candidate_genes)))
+  ]
+  
+  soup_idx <- match(soup_genes, rownames(counts))
+  
+  soup_prob <- as.numeric(source_profile[soup_genes])
+  soup_prob <- soup_prob / sum(soup_prob)
+  
+  n_cells <- ncol(counts)
+  
+  # Cell-specific contamination fraction.
+  # Mean is around mean_frac, but each cell has small variation.
+  alpha <- max(mean_frac * concentration, 0.1)
+  beta <- max((1 - mean_frac) * concentration, 0.1)
+  
+  rho_cell <- rbeta(n_cells, alpha, beta)
+  rho_cell <- pmin(pmax(rho_cell, 0.001), 0.6)
+  names(rho_cell) <- colnames(counts)
+  
+  native_umi <- Matrix::colSums(counts)
+  ambient_umi <- as.integer(round(rho_cell / (1 - rho_cell) * native_umi))
+  
+  ii_list <- vector("list", n_cells)
+  jj_list <- vector("list", n_cells)
+  xx_list <- vector("list", n_cells)
+  
+  for (j in seq_len(n_cells)) {
+    if (ambient_umi[j] > 0) {
+      draw <- as.vector(rmultinom(1, size = ambient_umi[j], prob = soup_prob))
+      nz <- which(draw > 0)
+      
+      ii_list[[j]] <- soup_idx[nz]
+      jj_list[[j]] <- rep(j, length(nz))
+      xx_list[[j]] <- draw[nz]
+    }
+  }
+  
+  ambient_mat <- Matrix::sparseMatrix(
+    i = unlist(ii_list),
+    j = unlist(jj_list),
+    x = unlist(xx_list),
+    dims = dim(counts),
+    dimnames = dimnames(counts)
+  )
+  
+  contaminated <- counts + ambient_mat
+  
+  true_frac <- Matrix::colSums(ambient_mat) / Matrix::colSums(contaminated)
+  names(true_frac) <- colnames(counts)
+  
+  list(
+    contaminated = contaminated,
+    ambient = ambient_mat,
+    true_frac = true_frac,
+    target_frac = mean_frac,
+    soup_gene_n = soup_gene_n,
+    soup_genes = soup_genes,
+    source_cluster = source_cluster,
+    source_n_cells = length(source_cells)
+  )
+}
+
+# Generate 8 contaminated scenarios
+scenarios <- expand.grid(
+  soup_gene_n = c(1, 100),
+  mean_frac = c(0.02, 0.05, 0.10, 0.20)
+)
+
+sim_list <- list()
+sim_summary <- data.frame()
+
+for (i in seq_len(nrow(scenarios))) {
+  s <- scenarios[i, ]
+  
+  frac_label <- gsub("\\.", "p", sprintf("%.2f", s$mean_frac))
+  
+  scenario_name <- paste0(
+    "sourceCluster", source_cluster,
+    "_genes", s$soup_gene_n,
+    "_frac", frac_label
+  )
+  
+  message("Simulating scenario: ", scenario_name)
+  
+  sim <- simulate_ambient_from_source(
+    counts = clean_counts,
+    source_cells = source_cells,
+    source_cluster = source_cluster,
+    soup_gene_n = s$soup_gene_n,
+    mean_frac = s$mean_frac,
+    seed = 1000 + i
+  )
+  
+  sim_list[[scenario_name]] <- sim
+  
+  sim_summary <- rbind(
+    sim_summary,
+    data.frame(
+      scenario = scenario_name,
+      source_cluster = source_cluster,
+      source_n_cells = length(source_cells),
+      soup_gene_n = s$soup_gene_n,
+      target_frac = s$mean_frac,
+      actual_mean_frac = mean(sim$true_frac),
+      actual_sd_frac = sd(sim$true_frac),
+      min_frac = min(sim$true_frac),
+      max_frac = max(sim$true_frac),
+      total_added_umis = sum(Matrix::colSums(sim$ambient)),
+      top_soup_genes = paste(head(sim$soup_genes, 10), collapse = ";")
+    )
+  )
+}
+
+saveRDS(
+  sim_list,
+  "results/simulated/simulated_ambient_datasets.rds"
+)
+
+write.csv(
+  sim_summary,
+  "results/simulated/simulation_summary.csv",
+  row.names = FALSE
+)
+
+sim_summary
+
+# Draw a real distribution map of contaminated proportions
+true_frac_df <- do.call(
+  rbind,
+  lapply(names(sim_list), function(name) {
+    sim <- sim_list[[name]]
+    
+    data.frame(
+      scenario = name,
+      soup_gene_n = sim$soup_gene_n,
+      target_frac = sim$target_frac,
+      true_ambient_fraction = as.numeric(sim$true_frac)
+    )
+  })
+)
+
+p_true_frac_dist <- ggplot(
+  true_frac_df,
+  aes(x = true_ambient_fraction)
+) +
+  geom_histogram(bins = 40) +
+  facet_grid(
+    rows = vars(soup_gene_n),
+    cols = vars(target_frac),
+    labeller = label_both
+  ) +
+  theme_white +
+  labs(
+    title = "Distribution of simulated ambient RNA fractions",
+    x = "True ambient RNA fraction per cell",
+    y = "Number of cells"
+  )
+
+ggsave(
+  "figures/FigS5_Simulated_true_ambient_fraction_distribution.png",
+  p_true_frac_dist,
+  width = 12,
+  height = 5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_true_frac_dist
+
+```
+
+### No-correction baseline
+
+```{r}
+dir.create("results/metrics", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+# If objects are not in memory, reload them
+if (!exists("sim_list")) {
+  sim_list <- readRDS("results/simulated/simulated_ambient_datasets.rds")
+}
+
+if (!exists("clean_counts")) {
+  clean_counts <- get_assay_data(pbmc, "counts")
+}
+
+clean_clusters <- as.character(Idents(pbmc))
+names(clean_clusters) <- colnames(pbmc)
+
+if (!exists("monocyte_source_scores")) {
+  monocyte_source_scores <- read.csv(
+    "results/simulated/monocyte_source_cluster_scores.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+monocyte_source_scores$cluster <- as.character(monocyte_source_scores$cluster)
+
+# Exclude the top monocyte-like clusters when measuring marker leakage
+monocyte_like_clusters <- monocyte_source_scores$cluster[
+  seq_len(min(3, nrow(monocyte_source_scores)))
+]
+
+recipient_cells <- names(clean_clusters)[
+  !(clean_clusters %in% monocyte_like_clusters)
+]
+
+monocyte_like_clusters
+length(recipient_cells)
+
+# Define the error calculation function
+# The function is used to compare two count matrix: clean_counts and contaminated_counts
+calc_rmse_sparse <- function(a, b, genes = NULL, cells = NULL) {
+  if (!is.null(genes)) {
+    genes <- intersect(genes, rownames(a))
+    a <- a[genes, , drop = FALSE]
+    b <- b[genes, , drop = FALSE]
+  }
+  
+  if (!is.null(cells)) {
+    cells <- intersect(cells, colnames(a))
+    a <- a[, cells, drop = FALSE]
+    b <- b[, cells, drop = FALSE]
+  }
+  
+  d <- a - b
+  sqrt(sum(d@x^2) / (nrow(d) * ncol(d)))
+}
+
+calc_mae_sparse <- function(a, b, genes = NULL, cells = NULL) {
+  if (!is.null(genes)) {
+    genes <- intersect(genes, rownames(a))
+    a <- a[genes, , drop = FALSE]
+    b <- b[genes, , drop = FALSE]
+  }
+  
+  if (!is.null(cells)) {
+    cells <- intersect(cells, colnames(a))
+    a <- a[, cells, drop = FALSE]
+    b <- b[, cells, drop = FALSE]
+  }
+  
+  d <- a - b
+  sum(abs(d@x)) / (nrow(d) * ncol(d))
+}
+
+calc_mean_marker_counts <- function(mat, genes, cells) {
+  genes <- intersect(genes, rownames(mat))
+  cells <- intersect(cells, colnames(mat))
+  
+  if (length(genes) == 0 || length(cells) == 0) {
+    return(NA_real_)
+  }
+  
+  mean(Matrix::colSums(mat[genes, cells, drop = FALSE]) / length(genes))
+}
+
+# no-correction baseline metrics
+# If there is a significant difference between soup_gene_n = 1 and soup_gene_n = 100, it indicates that the "number of contamination genes" does indeed affect the downstream signal.
+hvg500 <- head(VariableFeatures(pbmc), 500)
+
+monocyte_leakage_genes <- intersect(
+  c("LYZ", "S100A8", "S100A9", "FCGR3A", "MS4A7", "CST3"),
+  rownames(clean_counts)
+)
+
+monocyte_leakage_genes
+
+no_correction_metrics <- data.frame()
+
+for (name in names(sim_list)) {
+  message("Calculating no-correction metrics for: ", name)
+  
+  sim <- sim_list[[name]]
+  
+  contaminated_counts <- sim$contaminated
+  
+  # Align rows and columns just in case
+  common_genes <- intersect(rownames(clean_counts), rownames(contaminated_counts))
+  common_cells <- intersect(colnames(clean_counts), colnames(contaminated_counts))
+  
+  clean_aligned <- clean_counts[common_genes, common_cells, drop = FALSE]
+  contaminated_aligned <- contaminated_counts[common_genes, common_cells, drop = FALSE]
+  
+  soup_genes <- intersect(sim$soup_genes, rownames(clean_aligned))
+  
+  clean_marker_leakage <- calc_mean_marker_counts(
+    clean_aligned,
+    genes = monocyte_leakage_genes,
+    cells = recipient_cells
+  )
+  
+  contaminated_marker_leakage <- calc_mean_marker_counts(
+    contaminated_aligned,
+    genes = monocyte_leakage_genes,
+    cells = recipient_cells
+  )
+  
+  clean_soup_gene_signal <- calc_mean_marker_counts(
+    clean_aligned,
+    genes = soup_genes,
+    cells = recipient_cells
+  )
+  
+  contaminated_soup_gene_signal <- calc_mean_marker_counts(
+    contaminated_aligned,
+    genes = soup_genes,
+    cells = recipient_cells
+  )
+  
+  no_correction_metrics <- rbind(
+    no_correction_metrics,
+    data.frame(
+      scenario = name,
+      source_cluster = sim$source_cluster,
+      soup_gene_n = sim$soup_gene_n,
+      target_frac = sim$target_frac,
+      actual_mean_frac = mean(sim$true_frac),
+      actual_sd_frac = sd(sim$true_frac),
+      
+      rmse_all_genes = calc_rmse_sparse(clean_aligned, contaminated_aligned),
+      mae_all_genes = calc_mae_sparse(clean_aligned, contaminated_aligned),
+      
+      rmse_hvg500 = calc_rmse_sparse(
+        clean_aligned,
+        contaminated_aligned,
+        genes = hvg500
+      ),
+      mae_hvg500 = calc_mae_sparse(
+        clean_aligned,
+        contaminated_aligned,
+        genes = hvg500
+      ),
+      
+      rmse_soup_genes = calc_rmse_sparse(
+        clean_aligned,
+        contaminated_aligned,
+        genes = soup_genes
+      ),
+      mae_soup_genes = calc_mae_sparse(
+        clean_aligned,
+        contaminated_aligned,
+        genes = soup_genes
+      ),
+      
+      clean_marker_leakage = clean_marker_leakage,
+      contaminated_marker_leakage = contaminated_marker_leakage,
+      marker_leakage_increase = contaminated_marker_leakage - clean_marker_leakage,
+      marker_leakage_ratio = contaminated_marker_leakage / clean_marker_leakage,
+      
+      clean_soup_gene_signal = clean_soup_gene_signal,
+      contaminated_soup_gene_signal = contaminated_soup_gene_signal,
+      soup_gene_signal_increase = contaminated_soup_gene_signal - clean_soup_gene_signal,
+      
+      mean_added_umis_per_cell = mean(Matrix::colSums(sim$ambient)),
+      total_added_umis = sum(Matrix::colSums(sim$ambient)),
+      top_soup_genes = paste(head(sim$soup_genes, 10), collapse = ";")
+    )
+  )
+}
+
+write.csv(
+  no_correction_metrics,
+  "results/metrics/no_correction_metrics.csv",
+  row.names = FALSE
+)
+
+no_correction_metrics
+
+# Draw the no-correction baseline graph
+p_error <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = rmse_hvg500,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Count-level error without ambient RNA correction",
+    x = "Mean simulated ambient RNA fraction",
+    y = "RMSE on top 500 highly variable genes",
+    shape = "Ambient genes"
+  )
+
+p_marker_leakage <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = marker_leakage_increase,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Monocyte marker leakage without correction",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Increase in monocyte marker counts",
+    shape = "Ambient genes"
+  )
+
+p_no_correction <- p_error | p_marker_leakage
+
+ggsave(
+  "figures/FigS6_No_correction_baseline_metrics.png",
+  p_no_correction,
+  width = 12,
+  height = 4.5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_no_correction
+```
+
+```{r}
+# clustering impact
+# ARI tool
+if (!requireNamespace("mclust", quietly = TRUE)) {
+  install.packages("mclust")
+}
+
+library(mclust)
+
+# Seurat workflow of contaminated data
+# Redo on the contaminated matrix: Normalization, Variable feature selection, PCA, Clustering, UMAP
+run_seurat_basic <- function(counts, project_name) {
+  obj <- CreateSeuratObject(
+    counts = counts,
+    project = project_name,
+    min.cells = 0,
+    min.features = 0
+  )
+  
+  obj <- NormalizeData(
+    obj,
+    normalization.method = "LogNormalize",
+    scale.factor = 10000,
+    verbose = FALSE
+  )
+  
+  obj <- FindVariableFeatures(
+    obj,
+    selection.method = "vst",
+    nfeatures = 2000,
+    verbose = FALSE
+  )
+  
+  obj <- ScaleData(
+    obj,
+    features = VariableFeatures(obj),
+    verbose = FALSE
+  )
+  
+  obj <- RunPCA(
+    obj,
+    features = VariableFeatures(obj),
+    verbose = FALSE
+  )
+  
+  obj <- FindNeighbors(obj, dims = 1:15, verbose = FALSE)
+  obj <- FindClusters(obj, resolution = 0.7, verbose = FALSE)
+  obj <- RunUMAP(obj, dims = 1:15, verbose = FALSE)
+  
+  obj
+}
+
+# Calculate the ARI of contaminated clustering and clean clustering
+# ARI: The closer ARI is to 1, the more consistent it is between contaminated clustering and clean clustering.
+# The ARI decreases with the contamination ratio, indicating that ambient RNA affects clustering.
+no_correction_cluster_metrics <- data.frame()
+contaminated_cluster_labels <- list()
+
+example_candidates <- names(sim_list)[
+  grepl("genes100", names(sim_list)) & grepl("frac0p10", names(sim_list))
+]
+
+example_name <- example_candidates[1]
+example_obj <- NULL
+
+for (name in names(sim_list)) {
+  message("Running contaminated clustering for: ", name)
+  
+  sim <- sim_list[[name]]
+  
+  contam_obj <- run_seurat_basic(
+    counts = sim$contaminated,
+    project_name = paste0("NoCorrection_", name)
+  )
+  
+  contaminated_clusters <- as.character(Idents(contam_obj))
+  names(contaminated_clusters) <- colnames(contam_obj)
+  
+  common_cells <- intersect(names(clean_clusters), names(contaminated_clusters))
+  
+  ari_value <- mclust::adjustedRandIndex(
+    clean_clusters[common_cells],
+    contaminated_clusters[common_cells]
+  )
+  
+  no_correction_cluster_metrics <- rbind(
+    no_correction_cluster_metrics,
+    data.frame(
+      scenario = name,
+      soup_gene_n = sim$soup_gene_n,
+      target_frac = sim$target_frac,
+      actual_mean_frac = mean(sim$true_frac),
+      clean_n_clusters = length(unique(clean_clusters[common_cells])),
+      contaminated_n_clusters = length(unique(contaminated_clusters[common_cells])),
+      ARI_vs_clean = ari_value
+    )
+  )
+  
+  contaminated_cluster_labels[[name]] <- contaminated_clusters
+  
+  if (!is.na(example_name) && name == example_name) {
+    example_obj <- contam_obj
+    example_obj$true_ambient_fraction <- sim$true_frac[colnames(example_obj)]
+  }
+}
+
+write.csv(
+  no_correction_cluster_metrics,
+  "results/metrics/no_correction_cluster_metrics.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  contaminated_cluster_labels,
+  "results/metrics/no_correction_contaminated_cluster_labels.rds"
+)
+
+no_correction_cluster_metrics
+
+# Draw clustering impact graph
+# Answer: Will ambient RNA change clustering?
+# Is clustering more unstable as contamination intensifies?
+# Does 1 gene have a different impact on clustering compared to 100 genes?
+p_ari <- ggplot(
+  no_correction_cluster_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = ARI_vs_clean,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Clustering stability without ambient RNA correction",
+    x = "Mean simulated ambient RNA fraction",
+    y = "ARI compared with clean clustering",
+    shape = "Ambient genes"
+  )
+
+ggsave(
+  "figures/FigS7_No_correction_clustering_ARI.png",
+  p_ari,
+  width = 6,
+  height = 4.5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_ari
+
+# contaminated example UMAP
+# 100 ambient genes
+# 10% contamination
+# supplementary figure (pending)
+if (!is.null(example_obj)) {
+  p_example_cluster <- DimPlot(
+    example_obj,
+    reduction = "umap",
+    label = TRUE
+  ) +
+    theme_white +
+    ggtitle("Contaminated PBMC clusters\n100 ambient genes, 10% target contamination")
+  
+  umap_df <- as.data.frame(Embeddings(example_obj, "umap"))
+  colnames(umap_df)[1:2] <- c("UMAP_1", "UMAP_2")
+  umap_df$true_ambient_fraction <- example_obj$true_ambient_fraction
+  
+  p_example_frac <- ggplot(
+    umap_df,
+    aes(
+      x = UMAP_1,
+      y = UMAP_2,
+      color = true_ambient_fraction
+    )
+  ) +
+    geom_point(size = 0.5) +
+    theme_white +
+    labs(
+      title = "Ground-truth ambient RNA fraction",
+      color = "True fraction"
+    )
+  
+  p_example_umap <- p_example_cluster | p_example_frac
+  
+  ggsave(
+    "figures/FigS8_No_correction_contaminated_example_UMAP.png",
+    p_example_umap,
+    width = 12,
+    height = 5,
+    dpi = 300,
+    bg = "white"
+  )
+  
+  saveRDS(
+    example_obj,
+    "results/simulated/no_correction_example_genes100_frac0p10_seurat.rds"
+  )
+  
+  p_example_umap
+}
+
+# revised no-correction figure showing single-gene effects
+# supplementary(pending)
+p_rmse_all <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = rmse_all_genes,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Global count error without correction",
+    x = "Mean simulated ambient RNA fraction",
+    y = "RMSE across all genes",
+    shape = "Ambient genes"
+  )
+
+p_rmse_soup <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = rmse_soup_genes,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Error on ambient-source genes",
+    x = "Mean simulated ambient RNA fraction",
+    y = "RMSE on soup genes",
+    shape = "Ambient genes"
+  )
+
+p_soup_signal <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = soup_gene_signal_increase,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Soup-gene signal increase in recipient cells",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Increase in soup-gene counts",
+    shape = "Ambient genes"
+  )
+
+p_marker_leakage_revised <- ggplot(
+  no_correction_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = marker_leakage_increase,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Monocyte-marker leakage",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Increase in monocyte marker counts",
+    shape = "Ambient genes"
+  )
+
+p_no_correction_revised <- (p_rmse_all | p_rmse_soup) /
+  (p_soup_signal | p_marker_leakage_revised)
+
+ggsave(
+  "figures/FigS6b_No_correction_metrics_revised.png",
+  p_no_correction_revised,
+  width = 12,
+  height = 8,
+  dpi = 300,
+  bg = "white"
+)
+
+p_no_correction_revised
+```
+
+### DecontX benchmarking
+
+```{r}
+library(celda)
+
+dir.create("results/decontx", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+if (!exists("sim_list")) {
+  sim_list <- readRDS("results/simulated/simulated_ambient_datasets.rds")
+}
+
+if (!exists("contaminated_cluster_labels")) {
+  contaminated_cluster_labels <- readRDS(
+    "results/metrics/no_correction_contaminated_cluster_labels.rds"
+  )
+}
+
+if (!exists("no_correction_metrics")) {
+  no_correction_metrics <- read.csv(
+    "results/metrics/no_correction_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+if (!exists("clean_counts")) {
+  clean_counts <- get_assay_data(pbmc, "counts")
+}
+
+clean_clusters <- as.character(Idents(pbmc))
+names(clean_clusters) <- colnames(pbmc)
+
+test_name <- names(sim_list)[
+  grepl("genes100", names(sim_list)) &
+    grepl("frac0p10", names(sim_list))
+][1]
+
+test_name
+
+test_sim <- sim_list[[test_name]]
+
+test_z <- contaminated_cluster_labels[[test_name]]
+test_z <- test_z[colnames(test_sim$contaminated)]
+
+table(test_z)
+dim(test_sim$contaminated)
+length(test_z)
+
+# DecontX
+set.seed(12345)
+
+decontx_test <- decontX(
+  x = test_sim$contaminated,
+  z = as.character(test_z)
+)
+
+decontx_test_counts <- decontx_test$decontXcounts
+decontx_test_est <- decontx_test$contamination
+
+# Make sure names match cells
+names(decontx_test_est) <- colnames(test_sim$contaminated)
+
+dim(decontx_test_counts)
+summary(decontx_test_est)
+
+
+decontx_detection_df <- data.frame(
+  cell = colnames(test_sim$contaminated),
+  true_ambient_fraction = as.numeric(test_sim$true_frac),
+  decontx_estimated_contamination = as.numeric(decontx_test_est)
+)
+
+spearman_test <- cor(
+  decontx_detection_df$true_ambient_fraction,
+  decontx_detection_df$decontx_estimated_contamination,
+  method = "spearman"
+)
+
+pearson_test <- cor(
+  decontx_detection_df$true_ambient_fraction,
+  decontx_detection_df$decontx_estimated_contamination,
+  method = "pearson"
+)
+
+contam_rmse_test <- sqrt(mean(
+  (
+    decontx_detection_df$true_ambient_fraction -
+      decontx_detection_df$decontx_estimated_contamination
+  )^2
+))
+
+decontx_detection_metrics_test <- data.frame(
+  scenario = test_name,
+  true_mean_fraction = mean(decontx_detection_df$true_ambient_fraction),
+  decontx_mean_estimate = mean(decontx_detection_df$decontx_estimated_contamination),
+  spearman_true_vs_decontx = spearman_test,
+  pearson_true_vs_decontx = pearson_test,
+  contamination_rmse = contam_rmse_test
+)
+
+write.csv(
+  decontx_detection_metrics_test,
+  "results/decontx/decontx_detection_metrics_test.csv",
+  row.names = FALSE
+)
+
+decontx_detection_metrics_test
+
+# Graph
+plot_label <- "100 ambient genes, 10% contamination"
+
+p_decontx_scatter <- ggplot(
+  decontx_detection_df,
+  aes(
+    x = true_ambient_fraction,
+    y = decontx_estimated_contamination
+  )
+) +
+  geom_point(size = 0.5, alpha = 0.45) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
+  theme_white +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 13),
+    axis.title = element_text(size = 15),
+    axis.text = element_text(size = 12)
+  ) +
+  labs(
+    title = "DecontX contamination estimate",
+    subtitle = paste0(
+      plot_label,
+      "\nSpearman = ", round(spearman_test, 3),
+      "; Pearson = ", round(pearson_test, 3)
+    ),
+    x = "Ground-truth ambient RNA fraction",
+    y = "DecontX estimated contamination"
+  )
+
+ggsave(
+  "figures/FigS9_DecontX_true_vs_estimated_test.png",
+  p_decontx_scatter,
+  width = 7,
+  height = 5.2,
+  dpi = 300,
+  bg = "white"
+)
+
+p_decontx_scatter
+
+# Figure 10
+# Make sure DecontX estimates have cell names
+names(decontx_test_est) <- colnames(test_sim$contaminated)
+
+# Extract clean PBMC UMAP coordinates
+umap_mat <- Embeddings(pbmc, reduction = "umap")
+
+umap_compare_df <- data.frame(
+  cell = rownames(umap_mat),
+  UMAP_1 = umap_mat[, 1],
+  UMAP_2 = umap_mat[, 2],
+  true_ambient_fraction = as.numeric(test_sim$true_frac[rownames(umap_mat)]),
+  decontx_estimated_contamination = as.numeric(decontx_test_est[rownames(umap_mat)])
+)
+
+# Remove any cells without matched scores
+umap_compare_df <- umap_compare_df[
+  !is.na(umap_compare_df$true_ambient_fraction) &
+    !is.na(umap_compare_df$decontx_estimated_contamination),
+]
+
+p_true_umap <- ggplot(
+  umap_compare_df,
+  aes(
+    x = UMAP_1,
+    y = UMAP_2,
+    color = true_ambient_fraction
+  )
+) +
+  geom_point(size = 0.45, alpha = 0.8) +
+  theme_white +
+  coord_equal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(size = 13),
+    axis.text = element_text(size = 11)
+  ) +
+  labs(
+    title = "Ground-truth ambient RNA fraction",
+    subtitle = "Clean PBMC UMAP embedding",
+    x = "UMAP 1",
+    y = "UMAP 2",
+    color = "True\nfraction"
+  )
+
+p_est_umap <- ggplot(
+  umap_compare_df,
+  aes(
+    x = UMAP_1,
+    y = UMAP_2,
+    color = decontx_estimated_contamination
+  )
+) +
+  geom_point(size = 0.45, alpha = 0.8) +
+  theme_white +
+  coord_equal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(size = 13),
+    axis.text = element_text(size = 11)
+  ) +
+  labs(
+    title = "DecontX estimated contamination",
+    subtitle = "Clean PBMC UMAP embedding",
+    x = "UMAP 1",
+    y = "UMAP 2",
+    color = "Estimated\ncontamination"
+  )
+
+p_decontx_umap <- p_true_umap | p_est_umap
+
+ggsave(
+  "figures/FigS10_DecontX_true_vs_estimated_UMAP_test.png",
+  p_decontx_umap,
+  width = 12,
+  height = 5.2,
+  dpi = 300,
+  bg = "white"
+)
+
+p_decontx_umap
+
+
+
+# Ensure decontX counts are sparse matrix
+decontx_test_counts <- as(decontx_test_counts, "dgCMatrix")
+rownames(decontx_test_counts) <- rownames(test_sim$contaminated)
+colnames(decontx_test_counts) <- colnames(test_sim$contaminated)
+
+hvg500 <- head(VariableFeatures(pbmc), 500)
+
+test_soup_genes <- intersect(test_sim$soup_genes, rownames(clean_counts))
+
+baseline_row <- no_correction_metrics[
+  no_correction_metrics$scenario == test_name,
+]
+
+decontx_rmse_hvg500 <- calc_rmse_sparse(
+  clean_counts,
+  decontx_test_counts,
+  genes = hvg500
+)
+
+decontx_rmse_soup_genes <- calc_rmse_sparse(
+  clean_counts,
+  decontx_test_counts,
+  genes = test_soup_genes
+)
+
+decontx_rmse_all_genes <- calc_rmse_sparse(
+  clean_counts,
+  decontx_test_counts
+)
+
+monocyte_leakage_decontx <- calc_mean_marker_counts(
+  decontx_test_counts,
+  genes = monocyte_leakage_genes,
+  cells = recipient_cells
+)
+
+decontx_correction_metrics_test <- data.frame(
+  scenario = test_name,
+  
+  no_correction_rmse_all_genes = baseline_row$rmse_all_genes,
+  decontx_rmse_all_genes = decontx_rmse_all_genes,
+  improvement_all_genes = 1 - decontx_rmse_all_genes / baseline_row$rmse_all_genes,
+  
+  no_correction_rmse_hvg500 = baseline_row$rmse_hvg500,
+  decontx_rmse_hvg500 = decontx_rmse_hvg500,
+  improvement_hvg500 = 1 - decontx_rmse_hvg500 / baseline_row$rmse_hvg500,
+  
+  no_correction_rmse_soup_genes = baseline_row$rmse_soup_genes,
+  decontx_rmse_soup_genes = decontx_rmse_soup_genes,
+  improvement_soup_genes = 1 - decontx_rmse_soup_genes / baseline_row$rmse_soup_genes,
+  
+  clean_marker_leakage = baseline_row$clean_marker_leakage,
+  no_correction_marker_leakage = baseline_row$contaminated_marker_leakage,
+  decontx_marker_leakage = monocyte_leakage_decontx,
+  marker_leakage_reduction = 1 -
+    (monocyte_leakage_decontx - baseline_row$clean_marker_leakage) /
+    (baseline_row$contaminated_marker_leakage - baseline_row$clean_marker_leakage)
+)
+
+write.csv(
+  decontx_correction_metrics_test,
+  "results/decontx/decontx_correction_metrics_test.csv",
+  row.names = FALSE
+)
+
+decontx_correction_metrics_test
+
+saveRDS(
+  list(
+    scenario = test_name,
+    decontx_result = decontx_test,
+    decontx_counts = decontx_test_counts,
+    decontx_estimated_contamination = decontx_test_est,
+    true_ambient_fraction = test_sim$true_frac
+  ),
+  "results/decontx/decontx_test_result.rds"
+)
+```
+
+### Batch DecontX benchmarking across all simulated scenarios
+
+```{r}
+library(celda)
+library(mclust)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(Matrix)
+
+dir.create("results/decontx", recursive = TRUE, showWarnings = FALSE)
+dir.create("results/decontx/per_scenario", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+# Reload objects if they are not currently in memory
+if (!exists("sim_list")) {
+  sim_list <- readRDS("results/simulated/simulated_ambient_datasets.rds")
+}
+
+if (!exists("no_correction_metrics")) {
+  no_correction_metrics <- read.csv(
+    "results/metrics/no_correction_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+if (!exists("no_correction_cluster_metrics")) {
+  no_correction_cluster_metrics <- read.csv(
+    "results/metrics/no_correction_cluster_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+if (!exists("contaminated_cluster_labels")) {
+  contaminated_cluster_labels <- readRDS(
+    "results/metrics/no_correction_contaminated_cluster_labels.rds"
+  )
+}
+
+if (!exists("clean_counts")) {
+  clean_counts <- get_assay_data(pbmc, "counts")
+}
+
+clean_clusters <- as.character(Idents(pbmc))
+names(clean_clusters) <- colnames(pbmc)
+
+hvg500 <- head(VariableFeatures(pbmc), 500)
+
+monocyte_leakage_genes <- intersect(
+  c("LYZ", "S100A8", "S100A9", "FCGR3A", "MS4A7", "CST3"),
+  rownames(clean_counts)
+)
+
+if (!exists("monocyte_source_scores")) {
+  monocyte_source_scores <- read.csv(
+    "results/simulated/monocyte_source_cluster_scores.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+monocyte_source_scores$cluster <- as.character(monocyte_source_scores$cluster)
+
+monocyte_like_clusters <- monocyte_source_scores$cluster[
+  seq_len(min(3, nrow(monocyte_source_scores)))
+]
+
+recipient_cells <- names(clean_clusters)[
+  !(clean_clusters %in% monocyte_like_clusters)
+]
+
+safe_improvement <- function(before, after, eps = 1e-12) {
+  if (is.na(before) || abs(before) < eps) {
+    return(NA_real_)
+  }
+  1 - after / before
+}
+
+safe_reduction <- function(clean_value, contaminated_value, corrected_value, eps = 1e-12) {
+  denom <- contaminated_value - clean_value
+  if (is.na(denom) || abs(denom) < eps) {
+    return(NA_real_)
+  }
+  1 - (corrected_value - clean_value) / denom
+}
+
+to_dgC <- function(x) {
+  if (inherits(x, "dgCMatrix")) {
+    return(x)
+  }
+  Matrix::Matrix(x, sparse = TRUE)
+}
+
+# Run DecontX for all scenarios
+
+decontx_metrics <- data.frame()
+decontx_estimates_all <- list()
+decontx_corrected_cluster_labels <- list()
+
+for (name in names(sim_list)) {
+  message("============================================================")
+  message("Running DecontX for scenario: ", name)
+  message("============================================================")
+  
+  sim <- sim_list[[name]]
+  contaminated_counts <- sim$contaminated
+  
+  # Use contaminated clustering labels as realistic DecontX input
+  z <- contaminated_cluster_labels[[name]]
+  
+  if (is.null(z)) {
+    message("No precomputed contaminated cluster labels found. Re-clustering contaminated matrix.")
+    
+    tmp_obj <- run_seurat_basic(
+      counts = contaminated_counts,
+      project_name = paste0("Contaminated_", name)
+    )
+    
+    z <- as.character(Idents(tmp_obj))
+    names(z) <- colnames(tmp_obj)
+  }
+  
+  z <- z[colnames(contaminated_counts)]
+  
+  if (any(is.na(z))) {
+    stop("Some cells do not have cluster labels in scenario: ", name)
+  }
+  
+  # Run DecontX
+  set.seed(12345)
+  
+  decontx_res <- decontX(
+    x = contaminated_counts,
+    z = as.character(z)
+  )
+  
+  corrected_counts <- to_dgC(decontx_res$decontXcounts)
+  rownames(corrected_counts) <- rownames(contaminated_counts)
+  colnames(corrected_counts) <- colnames(contaminated_counts)
+  
+  decontx_est <- as.numeric(decontx_res$contamination)
+  names(decontx_est) <- colnames(contaminated_counts)
+  
+  true_frac <- as.numeric(sim$true_frac[colnames(contaminated_counts)])
+  
+  # Detection metrics: can DecontX estimate per-cell contamination?
+  spearman_value <- cor(
+    true_frac,
+    decontx_est,
+    method = "spearman",
+    use = "complete.obs"
+  )
+  
+  pearson_value <- cor(
+    true_frac,
+    decontx_est,
+    method = "pearson",
+    use = "complete.obs"
+  )
+  
+  contamination_rmse <- sqrt(mean((true_frac - decontx_est)^2, na.rm = TRUE))
+  
+  # Baseline rows
+  baseline_row <- no_correction_metrics[
+    no_correction_metrics$scenario == name,
+  ]
+  
+  baseline_cluster_row <- no_correction_cluster_metrics[
+    no_correction_cluster_metrics$scenario == name,
+  ]
+  
+  if (nrow(baseline_row) != 1) {
+    stop("Could not find matching no-correction metrics for scenario: ", name)
+  }
+  
+  if (nrow(baseline_cluster_row) != 1) {
+    stop("Could not find matching no-correction cluster metrics for scenario: ", name)
+  }
+  
+  # Correction metrics: does corrected matrix move closer to clean matrix?
+  soup_genes <- intersect(sim$soup_genes, rownames(clean_counts))
+  
+  decontx_rmse_all_genes <- calc_rmse_sparse(
+    clean_counts,
+    corrected_counts
+  )
+  
+  decontx_mae_all_genes <- calc_mae_sparse(
+    clean_counts,
+    corrected_counts
+  )
+  
+  decontx_rmse_hvg500 <- calc_rmse_sparse(
+    clean_counts,
+    corrected_counts,
+    genes = hvg500
+  )
+  
+  decontx_mae_hvg500 <- calc_mae_sparse(
+    clean_counts,
+    corrected_counts,
+    genes = hvg500
+  )
+  
+  decontx_rmse_soup_genes <- calc_rmse_sparse(
+    clean_counts,
+    corrected_counts,
+    genes = soup_genes
+  )
+  
+  decontx_mae_soup_genes <- calc_mae_sparse(
+    clean_counts,
+    corrected_counts,
+    genes = soup_genes
+  )
+  
+  decontx_marker_leakage <- calc_mean_marker_counts(
+    corrected_counts,
+    genes = monocyte_leakage_genes,
+    cells = recipient_cells
+  )
+  
+  # Downstream clustering after DecontX correction
+  message("Running Seurat clustering on DecontX-corrected counts for: ", name)
+  
+  corrected_obj <- run_seurat_basic(
+    counts = corrected_counts,
+    project_name = paste0("DecontX_", name)
+  )
+  
+  corrected_clusters <- as.character(Idents(corrected_obj))
+  names(corrected_clusters) <- colnames(corrected_obj)
+  
+  common_cells <- intersect(names(clean_clusters), names(corrected_clusters))
+  
+  decontx_ari_vs_clean <- mclust::adjustedRandIndex(
+    clean_clusters[common_cells],
+    corrected_clusters[common_cells]
+  )
+  
+  # Store metrics
+  scenario_metrics <- data.frame(
+    scenario = name,
+    source_cluster = sim$source_cluster,
+    soup_gene_n = sim$soup_gene_n,
+    target_frac = sim$target_frac,
+    actual_mean_frac = mean(sim$true_frac),
+    actual_sd_frac = sd(sim$true_frac),
+    
+    true_mean_fraction = mean(true_frac, na.rm = TRUE),
+    decontx_mean_estimate = mean(decontx_est, na.rm = TRUE),
+    decontx_median_estimate = median(decontx_est, na.rm = TRUE),
+    spearman_true_vs_decontx = spearman_value,
+    pearson_true_vs_decontx = pearson_value,
+    contamination_rmse = contamination_rmse,
+    
+    no_correction_rmse_all_genes = baseline_row$rmse_all_genes,
+    decontx_rmse_all_genes = decontx_rmse_all_genes,
+    improvement_all_genes = safe_improvement(
+      baseline_row$rmse_all_genes,
+      decontx_rmse_all_genes
+    ),
+    
+    no_correction_mae_all_genes = baseline_row$mae_all_genes,
+    decontx_mae_all_genes = decontx_mae_all_genes,
+    improvement_mae_all_genes = safe_improvement(
+      baseline_row$mae_all_genes,
+      decontx_mae_all_genes
+    ),
+    
+    no_correction_rmse_hvg500 = baseline_row$rmse_hvg500,
+    decontx_rmse_hvg500 = decontx_rmse_hvg500,
+    improvement_hvg500 = safe_improvement(
+      baseline_row$rmse_hvg500,
+      decontx_rmse_hvg500
+    ),
+    
+    no_correction_rmse_soup_genes = baseline_row$rmse_soup_genes,
+    decontx_rmse_soup_genes = decontx_rmse_soup_genes,
+    improvement_soup_genes = safe_improvement(
+      baseline_row$rmse_soup_genes,
+      decontx_rmse_soup_genes
+    ),
+    
+    clean_marker_leakage = baseline_row$clean_marker_leakage,
+    no_correction_marker_leakage = baseline_row$contaminated_marker_leakage,
+    decontx_marker_leakage = decontx_marker_leakage,
+    marker_leakage_reduction = safe_reduction(
+      baseline_row$clean_marker_leakage,
+      baseline_row$contaminated_marker_leakage,
+      decontx_marker_leakage
+    ),
+    
+    no_correction_ARI_vs_clean = baseline_cluster_row$ARI_vs_clean,
+    decontx_ARI_vs_clean = decontx_ari_vs_clean,
+    ARI_change_after_decontx = decontx_ari_vs_clean - baseline_cluster_row$ARI_vs_clean,
+    corrected_n_clusters = length(unique(corrected_clusters)),
+    
+    top_soup_genes = paste(head(sim$soup_genes, 10), collapse = ";")
+  )
+  
+  decontx_metrics <- rbind(
+    decontx_metrics,
+    scenario_metrics
+  )
+  
+  decontx_estimates_all[[name]] <- decontx_est
+  decontx_corrected_cluster_labels[[name]] <- corrected_clusters
+  
+  # Save per-scenario lightweight result
+  saveRDS(
+    list(
+      scenario = name,
+      decontx_estimated_contamination = decontx_est,
+      true_ambient_fraction = sim$true_frac,
+      corrected_cluster_labels = corrected_clusters,
+      metrics = scenario_metrics
+    ),
+    file = paste0(
+      "results/decontx/per_scenario/",
+      name,
+      "_decontx_light_result.rds"
+    )
+  )
+  
+  # Save accumulated results after each scenario
+  write.csv(
+    decontx_metrics,
+    "results/decontx/decontx_batch_metrics_partial.csv",
+    row.names = FALSE
+  )
+  
+  saveRDS(
+    decontx_estimates_all,
+    "results/decontx/decontx_estimates_all_partial.rds"
+  )
+  
+  saveRDS(
+    decontx_corrected_cluster_labels,
+    "results/decontx/decontx_corrected_cluster_labels_partial.rds"
+  )
+}
+
+# Final save
+write.csv(
+  decontx_metrics,
+  "results/decontx/decontx_batch_metrics.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  decontx_estimates_all,
+  "results/decontx/decontx_estimates_all.rds"
+)
+
+saveRDS(
+  decontx_corrected_cluster_labels,
+  "results/decontx/decontx_corrected_cluster_labels.rds"
+)
+
+decontx_metrics
+
+# FigS11. DecontX detection performance across scenarios
+
+p_decontx_spearman <- ggplot(
+  decontx_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = spearman_true_vs_decontx,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "DecontX per-cell contamination detection",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Spearman correlation with ground truth",
+    shape = "Ambient genes"
+  )
+
+p_decontx_bias <- ggplot(
+  decontx_metrics,
+  aes(
+    x = actual_mean_frac,
+    y = decontx_mean_estimate - true_mean_fraction,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Mean contamination estimate bias",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Mean DecontX estimate - true mean",
+    shape = "Ambient genes"
+  )
+
+p_decontx_detection_batch <- p_decontx_spearman | p_decontx_bias
+
+ggsave(
+  "figures/FigS11_DecontX_detection_across_scenarios.png",
+  p_decontx_detection_batch,
+  width = 12,
+  height = 4.8,
+  dpi = 300,
+  bg = "white"
+)
+
+p_decontx_detection_batch
+
+# FigS12. DecontX correction performance across scenarios
+
+decontx_improve_long <- rbind(
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Global RMSE improvement",
+    value = decontx_metrics$improvement_all_genes
+  ),
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "HVG RMSE improvement",
+    value = decontx_metrics$improvement_hvg500
+  ),
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Soup-gene RMSE improvement",
+    value = decontx_metrics$improvement_soup_genes
+  ),
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Marker leakage reduction",
+    value = decontx_metrics$marker_leakage_reduction
+  )
+)
+
+p_decontx_correction_batch <- ggplot(
+  decontx_improve_long,
+  aes(
+    x = actual_mean_frac,
+    y = value,
+    group = factor(soup_gene_n),
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 3, na.rm = TRUE) +
+  geom_line(na.rm = TRUE) +
+  facet_wrap(~ metric, scales = "free_y", ncol = 2) +
+  theme_white +
+  labs(
+    title = "DecontX correction performance across simulated ambient RNA scenarios",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Improvement or reduction relative to no correction",
+    shape = "Ambient genes"
+  )
+
+ggsave(
+  "figures/FigS12_DecontX_correction_across_scenarios.png",
+  p_decontx_correction_batch,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+p_decontx_correction_batch
+
+# FigS13. Clustering stability before and after DecontX
+
+ari_long <- rbind(
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    method = "No correction",
+    ARI_vs_clean = decontx_metrics$no_correction_ARI_vs_clean
+  ),
+  data.frame(
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    method = "DecontX",
+    ARI_vs_clean = decontx_metrics$decontx_ARI_vs_clean
+  )
+)
+
+p_decontx_ari <- ggplot(
+  ari_long,
+  aes(
+    x = actual_mean_frac,
+    y = ARI_vs_clean,
+    group = interaction(method, soup_gene_n),
+    shape = factor(soup_gene_n),
+    linetype = method
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Clustering stability before and after DecontX correction",
+    x = "Mean simulated ambient RNA fraction",
+    y = "ARI compared with clean clustering",
+    shape = "Ambient genes",
+    linetype = "Method"
+  )
+
+ggsave(
+  "figures/FigS13_DecontX_clustering_ARI_across_scenarios.png",
+  p_decontx_ari,
+  width = 8,
+  height = 5.5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_decontx_ari
+
+
+# Report-ready DecontX summary table
+
+decontx_report_table <- decontx_metrics %>%
+  select(
+    soup_gene_n,
+    target_frac,
+    actual_mean_frac,
+    spearman_true_vs_decontx,
+    pearson_true_vs_decontx,
+    improvement_all_genes,
+    improvement_hvg500,
+    improvement_soup_genes,
+    marker_leakage_reduction,
+    no_correction_ARI_vs_clean,
+    decontx_ARI_vs_clean,
+    ARI_change_after_decontx
+  ) %>%
+  arrange(soup_gene_n, target_frac)
+
+write.csv(
+  decontx_report_table,
+  "results/decontx/decontx_report_table.csv",
+  row.names = FALSE
+)
+
+decontx_report_table
+```
+
+### CellBender real-data comparison
+```{r}
+# # CellBender attempted but excluded from quantitative benchmark
+run_cellbender_h5_analysis <- FALSE
+dir.create("results/cellbender", recursive = TRUE, showWarnings = FALSE)
+
+cellbender_attempt_summary <- data.frame(
+  method = "CellBender",
+  status = "Attempted but not included in quantitative benchmark",
+  input_data = "PBMC4K raw droplet H5 matrix",
+  attempted_environment = "Python 3.10, CellBender 0.3.2, torch 2.1.2, numpy 1.26.4",
+  attempted_command = paste(
+    "cellbender remove-background",
+    "--input data/PBMC4K_raw/pbmc4k_raw_gene_bc_matrices_h5.h5",
+    "--output results/cellbender/pbmc4k_cellbender_quick.h5",
+    "--expected-cells 5000",
+    "--total-droplets-included 8000",
+    "--epochs 20",
+    "--fpr 0.01",
+    "--cpu-threads 4"
+  ),
+  failure_point = "Checkpoint saving after training",
+  failure_message = "TypeError: cannot pickle 'weakref.ReferenceType' object; checkpoint file ckpt.tar.gz did not exist; H5 output was not generated",
+  interpretation = "CellBender was not used for quantitative downstream benchmarking because local execution failed before posterior H5 output generation.",
+  log_file = "results/cellbender/cellbender_quick_run_torch212.log"
+)
+
+write.csv(
+  cellbender_attempt_summary,
+  "results/cellbender/cellbender_attempt_summary.csv",
+  row.names = FALSE
+)
+
+cellbender_attempt_summary
+```
+
+### SoupX benchmark as second executable ambient RNA correction method
+
+```{r}
+# SoupX benchmark as second executable ambient RNA correction method
+
+library(SoupX)
+library(Matrix)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(mclust)
+
+dir.create("results/soupx", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+
+if (!exists("sim_list")) {
+  sim_list <- readRDS("results/simulated/simulated_ambient_datasets.rds")
+}
+
+if (!exists("clean_counts")) {
+  clean_counts <- get_assay_data(pbmc, "counts")
+}
+
+if (!exists("no_correction_metrics")) {
+  no_correction_metrics <- read.csv(
+    "results/metrics/no_correction_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+if (!exists("no_correction_cluster_metrics")) {
+  no_correction_cluster_metrics <- read.csv(
+    "results/metrics/no_correction_cluster_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+if (!exists("contaminated_cluster_labels")) {
+  contaminated_cluster_labels <- readRDS(
+    "results/metrics/no_correction_contaminated_cluster_labels.rds"
+  )
+}
+
+clean_clusters <- as.character(Idents(pbmc))
+names(clean_clusters) <- colnames(pbmc)
+
+hvg500 <- head(VariableFeatures(pbmc), 500)
+
+monocyte_leakage_genes <- intersect(
+  c("LYZ", "S100A8", "S100A9", "FCGR3A", "MS4A7", "CST3"),
+  rownames(clean_counts)
+)
+
+if (!exists("monocyte_source_scores")) {
+  monocyte_source_scores <- read.csv(
+    "results/simulated/monocyte_source_cluster_scores.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+monocyte_source_scores$cluster <- as.character(monocyte_source_scores$cluster)
+
+monocyte_like_clusters <- monocyte_source_scores$cluster[
+  seq_len(min(3, nrow(monocyte_source_scores)))
+]
+
+recipient_cells <- names(clean_clusters)[
+  !(clean_clusters %in% monocyte_like_clusters)
+]
+
+# Construct pseudo raw droplets for SoupX
+make_pseudo_raw_for_soupx <- function(
+    sim,
+    n_empty = 3000,
+    mean_empty_umi = 50,
+    seed = 1
+) {
+  set.seed(seed)
+  
+  toc <- as(sim$contaminated, "dgCMatrix")
+  
+  soup_counts <- Matrix::rowSums(sim$ambient)
+  
+  # If ambient matrix is too sparse, use soup genes uniformly
+  if (sum(soup_counts) == 0) {
+    soup_counts[sim$soup_genes] <- 1
+  }
+  
+  soup_genes <- intersect(sim$soup_genes, rownames(toc))
+  
+  soup_prob <- as.numeric(soup_counts[soup_genes])
+  
+  if (sum(soup_prob) == 0) {
+    soup_prob <- rep(1, length(soup_genes))
+  }
+  
+  soup_prob <- soup_prob / sum(soup_prob)
+  
+  empty_sizes <- rpois(n_empty, lambda = mean_empty_umi)
+  empty_sizes[empty_sizes < 1] <- 1
+  
+  ii_list <- vector("list", n_empty)
+  jj_list <- vector("list", n_empty)
+  xx_list <- vector("list", n_empty)
+  
+  soup_idx <- match(soup_genes, rownames(toc))
+  
+  for (j in seq_len(n_empty)) {
+    draw <- as.vector(rmultinom(1, size = empty_sizes[j], prob = soup_prob))
+    nz <- which(draw > 0)
+    
+    ii_list[[j]] <- soup_idx[nz]
+    jj_list[[j]] <- rep(j, length(nz))
+    xx_list[[j]] <- draw[nz]
+  }
+  
+  empty_mat <- Matrix::sparseMatrix(
+    i = unlist(ii_list),
+    j = unlist(jj_list),
+    x = unlist(xx_list),
+    dims = c(nrow(toc), n_empty),
+    dimnames = list(
+      rownames(toc),
+      paste0("EMPTY_", seq_len(n_empty))
+    )
+  )
+  
+  tod <- Matrix::cbind2(toc, empty_mat)
+  
+  list(
+    tod = tod,
+    toc = toc
+  )
+}
+
+# Run SoupX in batches
+soupx_metrics <- data.frame()
+soupx_corrected_cluster_labels <- list()
+
+for (name in names(sim_list)) {
+  message("============================================================")
+  message("Running SoupX for scenario: ", name)
+  message("============================================================")
+  
+  sim <- sim_list[[name]]
+  
+  pseudo <- make_pseudo_raw_for_soupx(
+    sim = sim,
+    n_empty = 3000,
+    mean_empty_umi = 50,
+    seed = 9000 + which(names(sim_list) == name)
+  )
+  
+  tod <- pseudo$tod
+  toc <- pseudo$toc
+  
+  sc <- SoupChannel(
+    tod = tod,
+    toc = toc
+  )
+  
+  z <- contaminated_cluster_labels[[name]]
+  z <- z[colnames(toc)]
+  
+  if (any(is.na(z))) {
+    stop("Some cells do not have cluster labels for SoupX scenario: ", name)
+  }
+  
+  sc <- setClusters(sc, z)
+  
+  # Manual-rho SoupX:
+  # Use the designed target contamination fraction, not per-cell true fractions.
+  sc <- setContaminationFraction(
+    sc,
+    contFrac = sim$target_frac,
+    forceAccept = TRUE
+  )
+  
+  soupx_counts <- adjustCounts(
+    sc,
+    roundToInt = TRUE
+  )
+  
+  soupx_counts <- as(soupx_counts, "dgCMatrix")
+  rownames(soupx_counts) <- rownames(toc)
+  colnames(soupx_counts) <- colnames(toc)
+  
+  baseline_row <- no_correction_metrics[
+    no_correction_metrics$scenario == name,
+  ]
+  
+  baseline_cluster_row <- no_correction_cluster_metrics[
+    no_correction_cluster_metrics$scenario == name,
+  ]
+  
+  soup_genes <- intersect(sim$soup_genes, rownames(clean_counts))
+  
+  soupx_rmse_all_genes <- calc_rmse_sparse(
+    clean_counts,
+    soupx_counts
+  )
+  
+  soupx_rmse_hvg500 <- calc_rmse_sparse(
+    clean_counts,
+    soupx_counts,
+    genes = hvg500
+  )
+  
+  soupx_rmse_soup_genes <- calc_rmse_sparse(
+    clean_counts,
+    soupx_counts,
+    genes = soup_genes
+  )
+  
+  soupx_marker_leakage <- calc_mean_marker_counts(
+    soupx_counts,
+    genes = monocyte_leakage_genes,
+    cells = recipient_cells
+  )
+  
+  message("Running Seurat clustering on SoupX-corrected counts for: ", name)
+  
+  soupx_obj <- run_seurat_basic(
+    counts = soupx_counts,
+    project_name = paste0("SoupX_", name)
+  )
+  
+  soupx_clusters <- as.character(Idents(soupx_obj))
+  names(soupx_clusters) <- colnames(soupx_obj)
+  
+  common_cells <- intersect(names(clean_clusters), names(soupx_clusters))
+  
+  soupx_ari_vs_clean <- mclust::adjustedRandIndex(
+    clean_clusters[common_cells],
+    soupx_clusters[common_cells]
+  )
+  
+  scenario_metrics <- data.frame(
+    scenario = name,
+    method = "SoupX_manual_rho",
+    source_cluster = sim$source_cluster,
+    soup_gene_n = sim$soup_gene_n,
+    target_frac = sim$target_frac,
+    actual_mean_frac = mean(sim$true_frac),
+    
+    no_correction_rmse_all_genes = baseline_row$rmse_all_genes,
+    soupx_rmse_all_genes = soupx_rmse_all_genes,
+    improvement_all_genes = safe_improvement(
+      baseline_row$rmse_all_genes,
+      soupx_rmse_all_genes
+    ),
+    
+    no_correction_rmse_hvg500 = baseline_row$rmse_hvg500,
+    soupx_rmse_hvg500 = soupx_rmse_hvg500,
+    improvement_hvg500 = safe_improvement(
+      baseline_row$rmse_hvg500,
+      soupx_rmse_hvg500
+    ),
+    
+    no_correction_rmse_soup_genes = baseline_row$rmse_soup_genes,
+    soupx_rmse_soup_genes = soupx_rmse_soup_genes,
+    improvement_soup_genes = safe_improvement(
+      baseline_row$rmse_soup_genes,
+      soupx_rmse_soup_genes
+    ),
+    
+    clean_marker_leakage = baseline_row$clean_marker_leakage,
+    no_correction_marker_leakage = baseline_row$contaminated_marker_leakage,
+    soupx_marker_leakage = soupx_marker_leakage,
+    marker_leakage_reduction = safe_reduction(
+      baseline_row$clean_marker_leakage,
+      baseline_row$contaminated_marker_leakage,
+      soupx_marker_leakage
+    ),
+    
+    no_correction_ARI_vs_clean = baseline_cluster_row$ARI_vs_clean,
+    soupx_ARI_vs_clean = soupx_ari_vs_clean,
+    ARI_change_after_soupx = soupx_ari_vs_clean -
+      baseline_cluster_row$ARI_vs_clean,
+    
+    top_soup_genes = paste(head(sim$soup_genes, 10), collapse = ";")
+  )
+  
+  soupx_metrics <- rbind(
+    soupx_metrics,
+    scenario_metrics
+  )
+  
+  soupx_corrected_cluster_labels[[name]] <- soupx_clusters
+  
+  write.csv(
+    soupx_metrics,
+    "results/soupx/soupx_metrics_partial.csv",
+    row.names = FALSE
+  )
+}
+
+write.csv(
+  soupx_metrics,
+  "results/soupx/soupx_metrics.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  soupx_corrected_cluster_labels,
+  "results/soupx/soupx_corrected_cluster_labels.rds"
+)
+
+soupx_metrics
+
+# Draw a comparison chart of DecontX vs. SoupX
+if (!exists("decontx_metrics")) {
+  decontx_metrics <- read.csv(
+    "results/decontx/decontx_batch_metrics.csv",
+    stringsAsFactors = FALSE
+  )
+}
+
+method_correction_long <- rbind(
+  data.frame(
+    method = "DecontX",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Global RMSE improvement",
+    value = decontx_metrics$improvement_all_genes
+  ),
+  data.frame(
+    method = "SoupX",
+    scenario = soupx_metrics$scenario,
+    soup_gene_n = soupx_metrics$soup_gene_n,
+    actual_mean_frac = soupx_metrics$actual_mean_frac,
+    metric = "Global RMSE improvement",
+    value = soupx_metrics$improvement_all_genes
+  ),
+  data.frame(
+    method = "DecontX",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "HVG RMSE improvement",
+    value = decontx_metrics$improvement_hvg500
+  ),
+  data.frame(
+    method = "SoupX",
+    scenario = soupx_metrics$scenario,
+    soup_gene_n = soupx_metrics$soup_gene_n,
+    actual_mean_frac = soupx_metrics$actual_mean_frac,
+    metric = "HVG RMSE improvement",
+    value = soupx_metrics$improvement_hvg500
+  ),
+  data.frame(
+    method = "DecontX",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Soup-gene RMSE improvement",
+    value = decontx_metrics$improvement_soup_genes
+  ),
+  data.frame(
+    method = "SoupX",
+    scenario = soupx_metrics$scenario,
+    soup_gene_n = soupx_metrics$soup_gene_n,
+    actual_mean_frac = soupx_metrics$actual_mean_frac,
+    metric = "Soup-gene RMSE improvement",
+    value = soupx_metrics$improvement_soup_genes
+  ),
+  data.frame(
+    method = "DecontX",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    metric = "Marker leakage reduction",
+    value = decontx_metrics$marker_leakage_reduction
+  ),
+  data.frame(
+    method = "SoupX",
+    scenario = soupx_metrics$scenario,
+    soup_gene_n = soupx_metrics$soup_gene_n,
+    actual_mean_frac = soupx_metrics$actual_mean_frac,
+    metric = "Marker leakage reduction",
+    value = soupx_metrics$marker_leakage_reduction
+  )
+)
+
+p_method_correction <- ggplot(
+  method_correction_long,
+  aes(
+    x = actual_mean_frac,
+    y = value,
+    group = interaction(method, soup_gene_n),
+    linetype = method,
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 2.5, na.rm = TRUE) +
+  geom_line(na.rm = TRUE) +
+  facet_wrap(~ metric, scales = "free_y", ncol = 2) +
+  theme_white +
+  labs(
+    title = "Correction performance of DecontX and SoupX",
+    x = "Mean simulated ambient RNA fraction",
+    y = "Improvement or reduction relative to no correction",
+    linetype = "Method",
+    shape = "Ambient genes"
+  )
+
+ggsave(
+  "figures/FigS14_DecontX_SoupX_correction_comparison.png",
+  p_method_correction,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+p_method_correction
+
+#  DecontX vs SoupX clustering graph
+method_ari_long <- rbind(
+  data.frame(
+    method = "No correction",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    ARI_vs_clean = decontx_metrics$no_correction_ARI_vs_clean
+  ),
+  data.frame(
+    method = "DecontX",
+    scenario = decontx_metrics$scenario,
+    soup_gene_n = decontx_metrics$soup_gene_n,
+    actual_mean_frac = decontx_metrics$actual_mean_frac,
+    ARI_vs_clean = decontx_metrics$decontx_ARI_vs_clean
+  ),
+  data.frame(
+    method = "SoupX",
+    scenario = soupx_metrics$scenario,
+    soup_gene_n = soupx_metrics$soup_gene_n,
+    actual_mean_frac = soupx_metrics$actual_mean_frac,
+    ARI_vs_clean = soupx_metrics$soupx_ARI_vs_clean
+  )
+)
+
+p_method_ari <- ggplot(
+  method_ari_long,
+  aes(
+    x = actual_mean_frac,
+    y = ARI_vs_clean,
+    group = interaction(method, soup_gene_n),
+    linetype = method,
+    shape = factor(soup_gene_n)
+  )
+) +
+  geom_point(size = 2.5) +
+  geom_line() +
+  theme_white +
+  labs(
+    title = "Clustering stability across correction methods",
+    x = "Mean simulated ambient RNA fraction",
+    y = "ARI compared with clean clustering",
+    linetype = "Method",
+    shape = "Ambient genes"
+  )
+
+ggsave(
+  "figures/FigS15_DecontX_SoupX_clustering_ARI.png",
+  p_method_ari,
+  width = 9,
+  height = 5.5,
+  dpi = 300,
+  bg = "white"
+)
+
+p_method_ari
+
+# Final method status table
+method_status_table <- data.frame(
+  method = c("DecontX", "SoupX", "CellBender"),
+  category = c(
+    "Probabilistic modeling",
+    "Profile subtraction",
+    "Deep generative raw-droplet model"
+  ),
+  run_status = c(
+    "Completed",
+    "Completed",
+    "Attempted; H5 output not generated"
+  ),
+  quantitative_benchmark = c(
+    "Yes",
+    "Yes",
+    "No"
+  ),
+  input_used = c(
+    "Simulated contaminated filtered PBMC count matrices with cluster labels",
+    "Simulated contaminated PBMC matrices with pseudo raw droplets and manual rho",
+    "PBMC4K raw droplet H5 matrix"
+  ),
+  evaluation = c(
+    "Ground-truth contamination correlation, RMSE, marker leakage, ARI",
+    "RMSE, marker leakage, ARI",
+    "Workflow and limitation discussion only"
+  ),
+  main_limitation_observed = c(
+    "Weak per-cell contamination recovery, especially for single-gene contamination",
+    "Manual contamination fraction used; not evaluated for per-cell contamination detection",
+    "Checkpoint serialization failed repeatedly, preventing posterior H5 output generation"
+  )
+)
+
+write.csv(
+  method_status_table,
+  "results/method_status_table.csv",
+  row.names = FALSE
+)
+
+method_status_table
+```
+
+### method comparison table
+```{r}
+main_method_table <- data.frame(
+  Method = c("DecontX", "SoupX", "CellBender"),
+  Strategy = c(
+    "Probabilistic contamination model",
+    "Profile subtraction",
+    "Deep generative raw-droplet model"
+  ),
+  Input = c(
+    "Filtered count matrix + clusters",
+    "Pseudo raw droplets + contaminated cells",
+    "Raw droplet H5 matrix"
+  ),
+  Project_evaluation = c(
+    "Ground-truth detection and correction benchmark",
+    "Manual-rho correction benchmark",
+    "Attempted workflow; no H5 output"
+  ),
+  Main_limitation = c(
+    "Weak per-cell recovery in this simulation",
+    "Target contamination fraction was supplied",
+    "Checkpoint serialization failed locally"
+  )
+)
+
+write.csv(
+  main_method_table,
+  "results/main_method_table.csv",
+  row.names = FALSE
+)
+
+main_method_table
+
+```
