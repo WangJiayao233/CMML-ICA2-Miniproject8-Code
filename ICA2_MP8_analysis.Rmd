@@ -157,25 +157,28 @@ saveRDS(pbmc, "results/qc/pbmc_clean_seurat.rds")
 
 ```{r}
 # Prepare working space
-dir.create("results/qc", recursive = TRUE, showWarnings = FALSE)
-dir.create("figures", recursive = TRUE, showWarnings = FALSE)
+dir.create("figures", showWarnings = FALSE)
 
-theme_white <- theme_classic(base_size = 14) +
-  theme(
-    plot.background = element_rect(fill = "white", colour = NA),
-    panel.background = element_rect(fill = "white", colour = NA),
-    legend.background = element_rect(fill = "white", colour = NA),
-    legend.key = element_rect(fill = "white", colour = NA)
-  )
-# Marker sanity check
-marker_genes_all <- c(
+# If theme_white has not been defined earlier, define it here
+if (!exists("theme_white")) {
+  theme_white <- theme_classic(base_size = 14) +
+    theme(
+      plot.background = element_rect(fill = "white", colour = NA),
+      panel.background = element_rect(fill = "white", colour = NA),
+      legend.background = element_rect(fill = "white", colour = NA),
+      legend.key = element_rect(fill = "white", colour = NA)
+    )
+}
+
+# Use a smaller but representative marker set for readability
+core_marker_genes_all <- c(
   # T cells
-  "CD3D", "CD3E", "TRAC", "IL7R", "CCR7", "LTB",
+  "CD3D", "CD3E", "TRAC", "IL7R",
   
   # B cells
-  "MS4A1", "CD79A", "CD79B", "CD74",
+  "MS4A1", "CD79A", "CD79B",
   
-  # NK cells
+  # NK / cytotoxic cells
   "NKG7", "GNLY", "KLRD1", "GZMB",
   
   # Monocytes
@@ -188,30 +191,42 @@ marker_genes_all <- c(
   "PPBP", "PF4"
 )
 
-marker_genes <- intersect(marker_genes_all, rownames(pbmc))
-missing_markers <- setdiff(marker_genes_all, rownames(pbmc))
+core_marker_genes <- intersect(core_marker_genes_all, rownames(pbmc))
+missing_core_markers <- setdiff(core_marker_genes_all, rownames(pbmc))
 
-marker_genes
-missing_markers
+core_marker_genes
+missing_core_markers
 
-p_marker_dot <- DotPlot(
+p_marker_dot_readable <- DotPlot(
   pbmc,
-  features = marker_genes
+  features = core_marker_genes
 ) +
-  RotatedAxis() +
+  coord_flip() +
   theme_white +
-  ggtitle("Canonical PBMC marker expression across clean clusters")
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 10),
+    axis.title = element_text(size = 13),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  ) +
+  labs(
+    title = "Canonical PBMC marker expression across clean clusters",
+    x = "Canonical PBMC marker genes",
+    y = "Clean PBMC cluster"
+  )
 
 ggsave(
   "figures/FigS4_Clean_marker_dotplot.png",
-  p_marker_dot,
-  width = 12,
-  height = 5,
+  p_marker_dot_readable,
+  width = 9,
+  height = 8,
   dpi = 300,
   bg = "white"
 )
 
-p_marker_dot
+p_marker_dot_readable
 
 all_markers <- FindAllMarkers(
   pbmc,
